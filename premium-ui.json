@@ -1,0 +1,7 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["app"],
+  "ownership": {
+    "Select/Listbox": "native"
+  }
+}

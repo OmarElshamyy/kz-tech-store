@@ -1,0 +1,117 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && (
+          request.auth.token.admin == true
+          || request.auth.uid == "OimGSZa7MhdKgNzstUjTsevgA2z1"
+          || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        );
+    }
+
+    function isString(value) {
+      return value is string;
+    }
+
+    function hasValidCustomerFields() {
+      return isString(request.resource.data.customerName)
+        && request.resource.data.customerName.size() > 0
+        && request.resource.data.customerName.size() <= 80
+        && isString(request.resource.data.contact)
+        && request.resource.data.contact.size() > 0
+        && request.resource.data.contact.size() <= 120
+        && isString(request.resource.data.address)
+        && request.resource.data.address.size() > 0
+        && request.resource.data.address.size() <= 240
+        && isString(request.resource.data.notes)
+        && request.resource.data.notes.size() <= 500;
+    }
+
+    function hasValidOrderFields() {
+      return request.resource.data.keys().hasOnly([
+          'customerName',
+          'contact',
+          'address',
+          'notes',
+          'items',
+          'subtotal',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 20
+        && request.resource.data.subtotal is number
+        && request.resource.data.subtotal > 0
+        && request.resource.data.subtotal <= 10000;
+    }
+
+    match /orders/{orderId} {
+      allow create: if hasValidCustomerFields() && hasValidOrderFields();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      allow create, update, delete: if false;
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if resource.data.isActive == true || isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly([
+          'slug',
+          'name',
+          'category',
+          'price',
+          'image',
+          'imageUrl',
+          'imageUrls',
+          'description',
+          'specs',
+          'inStock',
+          'stockQuantity',
+          'lowStockThreshold',
+          'isActive',
+          'featured',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.slug is string
+        && request.resource.data.name is string
+        && request.resource.data.category in [
+          'IEMs',
+          'Wireless',
+          'Cables',
+          'Ear tips',
+          'Cases',
+          'DACs'
+        ]
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrls is list
+        && request.resource.data.imageUrls.size() <= 8
+        && request.resource.data.stockQuantity is number
+        && request.resource.data.stockQuantity >= 0
+        && request.resource.data.lowStockThreshold is number
+        && request.resource.data.lowStockThreshold >= 0
+        && request.resource.data.isActive is bool
+        && request.resource.data.featured is bool;
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
